@@ -9,7 +9,6 @@ import language.implicitConversions
 import scala.collection.immutable
 import scala.reflect.ClassTag
 import scala.util.control.NoStackTrace
-import scala.runtime.AbstractPartialFunction
 import akka.util.Collections.EmptyImmutableSeq
 import java.util.Collections.{ emptyList, singletonList }
 
@@ -99,7 +98,7 @@ object JavaPartialFunction {
  * does not throw `noMatch()` it will continue with calling
  * `PurePartialFunction.apply(x, false)`.
  */
-abstract class JavaPartialFunction[A, B] extends AbstractPartialFunction[A, B] {
+abstract class JavaPartialFunction[A, B] extends scala.runtime.AbstractPartialFunction[A, B] {
   import JavaPartialFunction._
 
   @throws(classOf[Exception])
@@ -210,4 +209,22 @@ object Util {
     }
 
   def immutableSingletonSeq[T](value: T): immutable.Seq[T] = value :: Nil
+}
+
+/**
+ * Minimal abstract base class for Java Actors. Don't know if we want to keep the "idiomatic"
+ * getX methods of UntypedActor.
+ */
+abstract class Actor extends akka.actor.Actor
+
+/**
+ * Same as JavaPartialFunction but avoids throwing exceptions for normal control flow.
+ */
+private abstract class AbstractPartialFunction[A, B] extends scala.runtime.AbstractPartialFunction[A, B] {
+
+  def apply(x: A, onlyCheck: Boolean): Option[B]
+
+  final def isDefinedAt(x: A): Boolean = apply(x, true).isDefined
+  final override def apply(x: A): B = apply(x, false).getOrElse(throw new MatchError(x))
+  final override def applyOrElse[A1 <: A, B1 >: B](x: A1, default: A1 ⇒ B1): B1 = apply(x, false).getOrElse(default(x))
 }
