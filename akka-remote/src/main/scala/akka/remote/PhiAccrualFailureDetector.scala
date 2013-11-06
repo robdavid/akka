@@ -100,9 +100,7 @@ class PhiAccrualFailureDetector(
 
   private val state = new AtomicReference[State](State(history = firstHeartbeat, timestamp = None))
 
-  override def isAvailable: Boolean = isAvailable(clock())
-
-  private def isAvailable(timestamp: Long): Boolean = phi(timestamp) < threshold
+  override def isAvailable: Boolean = phi < threshold
 
   override def isMonitoring: Boolean = state.get.timestamp.nonEmpty
 
@@ -120,9 +118,7 @@ class PhiAccrualFailureDetector(
       case Some(latestTimestamp) ⇒
         // this is a known connection
         val interval = timestamp - latestTimestamp
-        // don't use the first heartbeat after failure for the history, since a long pause will skew the stats
-        if (isAvailable(timestamp)) oldState.history :+ interval
-        else oldState.history
+        oldState.history :+ interval
     }
 
     val newState = oldState.copy(history = newHistory, timestamp = Some(timestamp)) // record new timestamp
@@ -137,15 +133,13 @@ class PhiAccrualFailureDetector(
    * If a connection does not have any records in failure detector then it is
    * considered healthy.
    */
-  def phi: Double = phi(clock())
-
-  private def phi(timestamp: Long): Double = {
+  def phi: Double = {
     val oldState = state.get
     val oldTimestamp = oldState.timestamp
 
     if (oldTimestamp.isEmpty) 0.0 // treat unmanaged connections, e.g. with zero heartbeats, as healthy connections
     else {
-      val timeDiff = timestamp - oldTimestamp.get
+      val timeDiff = clock() - oldTimestamp.get
 
       val history = oldState.history
       val mean = history.mean
@@ -156,21 +150,21 @@ class PhiAccrualFailureDetector(
   }
 
   /**
-   * Calculation of phi, derived from the Cumulative distribution function for 
-   * N(mean, stdDeviation) normal distribution, given by 
+   * Calculation of phi, derived from the Cumulative distribution function for
+   * N(mean, stdDeviation) normal distribution, given by
    * 1.0 / (1.0 + math.exp(-y * (1.5976 + 0.070566 * y * y)))
-   * where y = (x - mean) / standard_deviation 
+   * where y = (x - mean) / standard_deviation
    * This is an approximation defined in β Mathematics Handbook (Logistic approximation).
    * Error is 0.00014 at +- 3.16
    * The calculated value is equivalent to -log10(1 - CDF(y))
    */
   private[akka] def phi(timeDiff: Long, mean: Double, stdDeviation: Double): Double = {
     val y = (timeDiff - mean) / stdDeviation
-    val e =  math.exp(-y * (1.5976 + 0.070566 * y * y))
-    if (timeDiff > mean) 
-        -math.log10(e / (1.0 + e)) 
-    else 
-        -math.log10(1.0 - 1.0/(1.0 + e))
+    val e = math.exp(-y * (1.5976 + 0.070566 * y * y))
+    if (timeDiff > mean)
+      -math.log10(e / (1.0 + e))
+    else
+      -math.log10(1.0 - 1.0 / (1.0 + e))
   }
 
   private val minStdDeviationMillis = minStdDeviation.toMillis
