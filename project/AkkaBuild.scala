@@ -42,8 +42,8 @@ object AkkaBuild extends Build {
   val requestedScalaVersion = System.getProperty("akka.scalaVersion", "2.10.2")
 
   lazy val buildSettings = Seq(
-    organization := "com.typesafe.akka",
-    version      := "2.2.3",
+    organization := "com.apakgroup.com.typesafe.akka",
+    version      := "2.2.3.1",
     // Also change ScalaVersion in akka-sbt-plugin/sample/project/Build.scala
     scalaVersion := requestedScalaVersion,
     scalaBinaryVersion <<= (scalaVersion, scalaBinaryVersion)((v, bv) => System.getProperty("akka.scalaBinaryVersion", if (v contains "-") v else bv))
